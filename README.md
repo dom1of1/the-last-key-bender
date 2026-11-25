@@ -1,7 +1,38 @@
-# WHY?
+<div align="center">
+
+# The Last Key Bender
+
+**Play the piano with your computer keyboard.**
+
+A desktop piano for Windows, macOS and Linux with real grand piano sound, songs you play along to like a rhythm game, and online song search.
+
+[![CI](https://github.com/dom1of1/the-last-key-bender/actions/workflows/ci.yml/badge.svg)](https://github.com/dom1of1/the-last-key-bender/actions/workflows/ci.yml)
+![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-blue)
+![Rust](https://img.shields.io/badge/made%20with-Rust-orange)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+
+[Download](#download) · [Screenshots](#screenshots) · [How to play](#how-to-play) · [Build from source](#building-from-source)
+
+</div>
+
+https://github.com/user-attachments/assets/e0584876-0705-4dd4-8190-c1197716768f
+
+## WHY?
 Always wanted to play a piano but can't afford one right now. 
 
 What I can do though is express my will programmatically, so here we are.
+
+## Features
+- **Real piano sound.** Recordings of a Yamaha grand piano, covering the whole keyboard from C1 to C8, with low enough delay to feel instant.
+- **61 keys on your keyboard.** The number and letter rows are the white keys, and Shift plays the black keys. Arrow keys shift the octave, and Space is the sustain pedal.
+- **Play along to songs.** Notes scroll towards a line and you type them in time while the backing plays itself. Choose the speed and difficulty, and get scored on every note.
+- **Any song you like.** Upload MIDI files or letter sheets, or search thousands of songs online and play them straight away.
+- **Works offline.** Everything except the online search works without an internet connection.
+
+## Screenshots
+| Free play | Play along | Online search |
+|---|---|---|
+| ![Free play](docs/screenshots/free-play.png) | ![Playing along to a song](docs/screenshots/play-along.png) | ![Online search results](docs/screenshots/online-search.png) |
 
 ## Download
 Download the latest version for your system, extract it and run `the-last-key-bender` (`the-last-key-bender.exe` on Windows):
@@ -60,3 +91,6 @@ sudo apt install build-essential pkg-config libasound2-dev libxkbcommon-dev
 Piano samples: [Salamander Grand Piano V3](https://archive.org/details/SalamanderGrandPianoV3) by Alexander Holm, licensed under [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/). Trimmed and converted to mono.
 
 Online songs come from [BitMidi](https://bitmidi.com). Each song belongs to its original authors.
+
+## License
+The code is released under the [MIT License](LICENSE). The piano samples keep their own CC BY 3.0 license, as credited above.
