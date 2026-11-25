@@ -2,7 +2,7 @@ use eframe::egui::Key;
 
 /// White keys from C2 to C7, left to right. Shift + key plays the sharp above it.
 #[rustfmt::skip]
-const WHITE_KEYS: [Key; 36] = [
+const WHITE_KEYS: [Key; WHITE_KEY_COUNT] = [
     Key::Num1, Key::Num2, Key::Num3, Key::Num4, Key::Num5, Key::Num6, Key::Num7,
     Key::Num8, Key::Num9, Key::Num0, Key::Q, Key::W, Key::E, Key::R,
     Key::T, Key::Y, Key::U, Key::I, Key::O, Key::P, Key::A,
@@ -11,19 +11,36 @@ const WHITE_KEYS: [Key; 36] = [
     Key::M,
 ];
 
+pub const WHITE_KEY_COUNT: usize = 36;
+const WHITE_LABELS: &[u8; WHITE_KEY_COUNT] = b"1234567890qwertyuiopasdfghjklzxcvbnm";
+// US-layout Shift symbols for 0-9, which is what letter sheets use for black keys.
+const SHIFTED_DIGITS: &[u8; 10] = b")!@#$%^&*(";
 const LOWEST_NOTE: u8 = 36;
 const SCALE: [u8; 7] = [0, 2, 4, 5, 7, 9, 11];
 
+pub fn white_note(index: usize) -> u8 {
+    LOWEST_NOTE + 12 * (index / 7) as u8 + SCALE[index % 7]
+}
+
+pub fn has_sharp(index: usize) -> bool {
+    !matches!(index % 7, 2 | 6) && index + 1 < WHITE_KEY_COUNT
+}
+
+pub fn label(index: usize, sharp: bool) -> char {
+    let c = WHITE_LABELS[index];
+    match (sharp, c) {
+        (false, _) => c as char,
+        (true, b'0'..=b'9') => SHIFTED_DIGITS[usize::from(c - b'0')] as char,
+        (true, _) => c.to_ascii_uppercase() as char,
+    }
+}
+
 pub fn note_for(key: Key, shift: bool) -> Option<u8> {
     let index = WHITE_KEYS.iter().position(|&k| k == key)?;
-    let degree = index % 7;
-    let note = LOWEST_NOTE + 12 * (index / 7) as u8 + SCALE[degree];
-
-    if !shift {
-        return Some(note);
+    match shift {
+        false => Some(white_note(index)),
+        true => has_sharp(index).then(|| white_note(index) + 1),
     }
-    let has_sharp = !matches!(degree, 2 | 6) && index + 1 < WHITE_KEYS.len();
-    has_sharp.then_some(note + 1)
 }
 
 #[cfg(test)]
@@ -55,6 +72,15 @@ mod tests {
             .collect();
         notes.sort();
         assert_eq!(notes, (36..=96).collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn labels_match_letter_sheets() {
+        assert_eq!(label(0, false), '1');
+        assert_eq!(label(0, true), '!');
+        assert_eq!(label(9, true), ')');
+        assert_eq!(label(14, false), 't');
+        assert_eq!(label(14, true), 'T');
     }
 
     #[test]

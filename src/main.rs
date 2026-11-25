@@ -4,6 +4,7 @@
 mod app;
 mod audio;
 mod keymap;
+mod piano_view;
 mod sampler;
 
 fn main() -> eframe::Result {
