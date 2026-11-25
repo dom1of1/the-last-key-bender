@@ -43,6 +43,31 @@ pub fn note_for(key: Key, shift: bool) -> Option<u8> {
     }
 }
 
+pub fn note_for_label(c: char) -> Option<u8> {
+    (0..WHITE_KEY_COUNT).find_map(|i| {
+        if label(i, false) == c {
+            Some(white_note(i))
+        } else if has_sharp(i) && label(i, true) == c {
+            Some(white_note(i) + 1)
+        } else {
+            None
+        }
+    })
+}
+
+/// The white key a note is played from, and whether it's the black key above it.
+pub fn key_for_note(note: u8) -> Option<(usize, bool)> {
+    (0..WHITE_KEY_COUNT).find_map(|i| {
+        if white_note(i) == note {
+            Some((i, false))
+        } else if has_sharp(i) && white_note(i) + 1 == note {
+            Some((i, true))
+        } else {
+            None
+        }
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -81,6 +106,16 @@ mod tests {
         assert_eq!(label(9, true), ')');
         assert_eq!(label(14, false), 't');
         assert_eq!(label(14, true), 'T');
+    }
+
+    #[test]
+    fn labels_and_notes_round_trip() {
+        for note in 36..=96 {
+            let (index, sharp) = key_for_note(note).unwrap();
+            assert_eq!(note_for_label(label(index, sharp)), Some(note));
+        }
+        assert_eq!(note_for_label('-'), None);
+        assert_eq!(key_for_note(35), None);
     }
 
     #[test]

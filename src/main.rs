@@ -4,8 +4,12 @@
 mod app;
 mod audio;
 mod keymap;
+mod lane;
+mod library;
 mod piano_view;
+mod practice;
 mod sampler;
+mod song;
 
 fn main() -> eframe::Result {
     let options = eframe::NativeOptions {

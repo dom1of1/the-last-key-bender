@@ -1,0 +1,3 @@
+bpm: 240
+f D f D f a d s p- | t u p a- | u O a s- | u
+f D f D f a d s p- | t u p a- | u s a p---
