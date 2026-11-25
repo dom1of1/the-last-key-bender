@@ -1,7 +1,5 @@
 use eframe::egui;
 
-/// All of the app's state lives here. egui redraws the whole UI every frame
-/// from this state ("immediate mode"), so there are no widget objects to keep in sync.
 #[derive(Default)]
 pub struct PianoApp {}
 

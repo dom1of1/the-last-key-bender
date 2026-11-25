@@ -1,5 +1,3 @@
-# CD = "Continuous Delivery": pushing a version tag (e.g. `git tag v0.1.0 && git push --tags`)
-# builds the app for every OS and attaches the binaries to a GitHub Release.
 name: Release
 
 on:
@@ -7,7 +5,7 @@ on:
     tags: ["v*"]
 
 permissions:
-  contents: write # needed to create the release
+  contents: write
 
 env:
   CARGO_TERM_COLOR: always
@@ -20,10 +18,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { os: ubuntu-22.04,   target: x86_64-unknown-linux-gnu } # older Ubuntu = works on more distros
+          - { os: ubuntu-22.04,   target: x86_64-unknown-linux-gnu } # older glibc, so the binary runs on more distros
           - { os: windows-latest, target: x86_64-pc-windows-msvc }
-          - { os: macos-latest,   target: aarch64-apple-darwin }     # Apple Silicon
-          - { os: macos-latest,   target: x86_64-apple-darwin }      # Intel Macs
+          - { os: macos-latest,   target: aarch64-apple-darwin }
+          - { os: macos-latest,   target: x86_64-apple-darwin }
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -53,14 +51,13 @@ jobs:
             tar czf "$name.tar.gz" "$name"
             echo "ASSET=$name.tar.gz" >> "$GITHUB_ENV"
           fi
-      # "Artifacts" are files a job hands on to later jobs (or lets you download).
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.target }}
           path: ${{ env.ASSET }}
 
   release:
-    needs: build # waits until every build in the matrix succeeded
+    needs: build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4

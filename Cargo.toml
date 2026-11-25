@@ -7,6 +7,6 @@ edition = "2024"
 eframe = "0.37.0"
 
 [profile.release]
-lto = "thin"      # smaller, faster binary (slower to compile)
+lto = "thin"
 codegen-units = 1
-strip = true      # drop debug symbols from the shipped binary
+strip = true

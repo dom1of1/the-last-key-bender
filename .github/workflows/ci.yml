@@ -1,6 +1,3 @@
-# CI = "Continuous Integration": every push / pull request gets checked
-# automatically on GitHub's machines ("runners"), so broken code is caught
-# before it reaches main.
 name: CI
 
 on:
@@ -12,7 +9,6 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  # Job 1: formatting + lints. Cheap, so it runs once on Linux.
   lint:
     name: fmt + clippy
     runs-on: ubuntu-latest
@@ -21,13 +17,12 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
-      - uses: Swatinem/rust-cache@v2 # caches compiled deps between runs
+      - uses: Swatinem/rust-cache@v2
       - name: Install Linux system libraries
         run: sudo apt-get update && sudo apt-get install -y libasound2-dev libxkbcommon-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev
       - run: cargo fmt --all --check
-      - run: cargo clippy --all-targets -- -D warnings # warnings fail the build
+      - run: cargo clippy --all-targets -- -D warnings
 
-  # Job 2: build + test on all three desktop OSes (a "matrix" = same job, several configs).
   test:
     name: test (${{ matrix.os }})
     strategy:

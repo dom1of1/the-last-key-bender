@@ -1,4 +1,4 @@
-// Hide the console window on Windows release builds (it's a GUI app).
+// No console window behind the app on Windows release builds.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod app;
