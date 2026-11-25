@@ -79,17 +79,23 @@ t t o o p p o- i i u u y y t-
 - The optional `bpm:` line sets the speed.
 
 ## Building from source
-Install [Rust](https://rustup.rs), then run:
+Install [Rust](https://rustup.rs) and your system's build tools:
+
+- **Windows:** [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) with *Desktop development with C++*. The Rust installer offers to set this up.
+- **macOS:** the Xcode command line tools, installed with `xcode-select --install`.
+- **Debian or Ubuntu Linux:**
+
+  ```
+  sudo apt install build-essential pkg-config libasound2-dev libxkbcommon-dev
+  ```
+
+Then, from the project folder, run:
 
 ```
 cargo run --release
 ```
 
-On Debian or Ubuntu Linux you'll also need:
-
-```
-sudo apt install build-essential pkg-config libasound2-dev libxkbcommon-dev
-```
+The first build takes a few minutes while it compiles everything. After that it starts in seconds.
 
 ## Credits
 Piano samples: [Salamander Grand Piano V3](https://archive.org/details/SalamanderGrandPianoV3) by Alexander Holm, licensed under [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/). Trimmed and converted to mono.
