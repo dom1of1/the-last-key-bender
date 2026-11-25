@@ -10,6 +10,9 @@ eframe = { version = "0.37.0", default-features = false, features = ["clipboard"
 lewton = "0.10.2"
 midly = { version = "0.5", default-features = false, features = ["std"] }
 rfd = "0.18.0"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+ureq = { version = "3.5.2", default-features = false, features = ["rustls"] }
 winit = { version = "0.30", default-features = false, features = ["wayland-csd-adwaita"] }
 
 [profile.release]

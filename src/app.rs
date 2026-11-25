@@ -1,10 +1,12 @@
 use std::collections::HashMap;
 use std::path::Path;
+use std::sync::mpsc::{self, Receiver, Sender};
 
 use eframe::egui::{self, Event, Key};
 
 use crate::audio::Audio;
-use crate::library::Library;
+use crate::library::{self, Library};
+use crate::online::{self, Hit, Message};
 use crate::piano_view::{self, KeyState};
 use crate::practice::{Difficulty, Practice, Press};
 use crate::{keymap, lane};
@@ -16,6 +18,7 @@ enum Action {
     Restart,
     Speed(f32),
     Difficulty(Difficulty),
+    Save,
 }
 
 pub struct PianoApp {
@@ -28,10 +31,21 @@ pub struct PianoApp {
     search: String,
     practice: Option<Practice>,
     status: Option<Result<String, String>>,
+    // The query whose online results are shown in the main area, if open.
+    online_query: Option<String>,
+    online_error: Option<String>,
+    results: Vec<Hit>,
+    searching: bool,
+    downloading: Option<String>,
+    // The file behind an opened search result that hasn't been saved to the library.
+    preview: Option<Vec<u8>>,
+    outbox: Sender<Message>,
+    inbox: Receiver<Message>,
 }
 
 impl PianoApp {
     pub fn new() -> Self {
+        let (outbox, inbox) = mpsc::channel();
         Self {
             audio: Audio::new(),
             held: HashMap::new(),
@@ -40,6 +54,14 @@ impl PianoApp {
             search: String::new(),
             practice: None,
             status: None,
+            online_query: None,
+            online_error: None,
+            results: Vec::new(),
+            searching: false,
+            downloading: None,
+            preview: None,
+            outbox,
+            inbox,
         }
     }
 
@@ -147,7 +169,43 @@ impl PianoApp {
     fn open(&mut self, title: &str) {
         if let Some(song) = self.library.songs.iter().find(|s| s.title == title) {
             self.practice = Some(Practice::new(song.title.clone(), song.chart.clone()));
+            self.preview = None;
+            self.online_query = None;
             self.set_playing(false);
+        }
+    }
+
+    fn search_online(&mut self, query: String, ctx: &egui::Context) {
+        self.searching = true;
+        self.results.clear();
+        self.online_error = None;
+        self.status = None;
+        self.online_query = Some(query.clone());
+        online::search(query, self.outbox.clone(), ctx.clone());
+    }
+
+    fn receive(&mut self, message: Message) {
+        match message {
+            Message::Results(result) => {
+                self.searching = false;
+                match result {
+                    Ok(results) => self.results = results,
+                    Err(error) => self.online_error = Some(error),
+                }
+            }
+            Message::Song(title, bytes) => {
+                self.downloading = None;
+                let song = bytes.and_then(|b| library::midi_chart(&b).map(|chart| (chart, b)));
+                match song {
+                    Ok((chart, bytes)) => {
+                        self.practice = Some(Practice::new(title, chart));
+                        self.preview = Some(bytes);
+                        self.online_query = None;
+                        self.set_playing(false);
+                    }
+                    Err(error) => self.online_error = Some(error),
+                }
+            }
         }
     }
 
@@ -169,7 +227,38 @@ impl PianoApp {
 
     fn library_panel(&mut self, ui: &mut egui::Ui) {
         ui.heading("Songs");
-        ui.add(egui::TextEdit::singleline(&mut self.search).hint_text("Search"));
+        let mut clear = false;
+        let search = ui
+            .horizontal(|ui| {
+                let clear_width = if self.search.is_empty() { 0.0 } else { 26.0 };
+                let search = ui
+                    .add(
+                        egui::TextEdit::singleline(&mut self.search)
+                            .hint_text("Search library and online")
+                            .desired_width(ui.available_width() - clear_width),
+                    )
+                    .on_hover_text("Type to filter your songs. Press Enter to search online.");
+                if !self.search.is_empty()
+                    && ui
+                        .add(egui::Button::new(egui::RichText::new("×").size(20.0)).frame(false))
+                        .on_hover_text("Clear search")
+                        .clicked()
+                {
+                    clear = true;
+                }
+                search
+            })
+            .inner;
+        if clear {
+            self.search.clear();
+            self.online_query = None;
+        }
+        let query = self.search.trim().to_string();
+        let mut search_online =
+            search.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter)) && !query.is_empty();
+        if !query.is_empty() && ui.button("Search online").clicked() {
+            search_online = true;
+        }
         ui.add_space(4.0);
 
         let mut chosen = None;
@@ -182,28 +271,42 @@ impl PianoApp {
                     .clicked()
                 {
                     self.practice = None;
+                    self.online_query = None;
                 }
-                let query = self.search.to_lowercase();
-                for song in &self.library.songs {
-                    if !song.title.to_lowercase().contains(&query) {
-                        continue;
+                let lowercase = query.to_lowercase();
+                for (heading, uploaded) in [("Built-in", false), ("My songs", true)] {
+                    ui.add_space(8.0);
+                    ui.strong(heading);
+                    let mut songs = self
+                        .library
+                        .songs
+                        .iter()
+                        .filter(|s| s.path.is_some() == uploaded)
+                        .peekable();
+                    if uploaded && songs.peek().is_none() {
+                        ui.weak("Songs you upload or save from online appear here.");
                     }
-                    let open = self
-                        .practice
-                        .as_ref()
-                        .is_some_and(|p| p.title == song.title);
-                    ui.horizontal(|ui| {
-                        if song.path.is_some()
-                            && bin_button(ui).on_hover_text("Remove this song").clicked()
-                        {
-                            removed = Some(song.title.clone());
-                        }
-                        if ui.selectable_label(open, &song.title).clicked() {
-                            chosen = Some(song.title.clone());
-                        }
-                    });
+                    for song in songs.filter(|s| s.title.to_lowercase().contains(&lowercase)) {
+                        let open = self
+                            .practice
+                            .as_ref()
+                            .is_some_and(|p| p.title == song.title);
+                        ui.horizontal(|ui| {
+                            if uploaded
+                                && bin_button(ui).on_hover_text("Remove this song").clicked()
+                            {
+                                removed = Some(song.title.clone());
+                            }
+                            if ui.selectable_label(open, &song.title).clicked() {
+                                chosen = Some(song.title.clone());
+                            }
+                        });
+                    }
                 }
             });
+        if search_online {
+            self.search_online(query, ui.ctx());
+        }
         if let Some(title) = chosen {
             self.open(&title);
         }
@@ -231,6 +334,59 @@ impl PianoApp {
         }
     }
 
+    fn online_results(&mut self, ui: &mut egui::Ui) {
+        let Some(query) = &self.online_query else {
+            return;
+        };
+        let mut close = false;
+        let mut fetch = None;
+
+        ui.horizontal(|ui| {
+            ui.heading(format!("Online results for \"{query}\""));
+            if ui.button("Close").clicked() {
+                close = true;
+            }
+        });
+        ui.weak("Songs from BitMidi. Click one to open it, then save it if you like it.");
+        ui.add_space(8.0);
+
+        if self.searching {
+            ui.horizontal(|ui| {
+                ui.spinner();
+                ui.weak("Searching…");
+            });
+        } else if self.results.is_empty() && self.online_error.is_none() {
+            ui.weak("No songs found.");
+        }
+        if let Some(error) = &self.online_error {
+            ui.colored_label(ui.visuals().error_fg_color, error);
+        }
+        if let Some(title) = &self.downloading {
+            ui.horizontal(|ui| {
+                ui.spinner();
+                ui.weak(format!("Loading \"{title}\"…"));
+            });
+        }
+        egui::ScrollArea::vertical().show(ui, |ui| {
+            for hit in &self.results {
+                if ui.selectable_label(false, &hit.title).clicked() {
+                    fetch = Some(hit.clone());
+                }
+            }
+        });
+
+        if close {
+            self.online_query = None;
+        }
+        if let Some(hit) = fetch
+            && self.downloading.is_none()
+        {
+            self.online_error = None;
+            self.downloading = Some(hit.title.clone());
+            online::download(hit, self.outbox.clone(), ui.ctx().clone());
+        }
+    }
+
     fn sheet(&mut self, ui: &mut egui::Ui) {
         let Some(practice) = &self.practice else {
             ui.weak("Pick a song from the list, or just play.");
@@ -250,6 +406,14 @@ impl PianoApp {
             }
             if ui.button("Restart").clicked() {
                 action = Some(Action::Restart);
+            }
+            if self.preview.is_some()
+                && ui
+                    .button("Save to library")
+                    .on_hover_text("Keep this song for offline use")
+                    .clicked()
+            {
+                action = Some(Action::Save);
             }
             ui.separator();
             for speed in SPEEDS {
@@ -303,6 +467,16 @@ impl PianoApp {
                     practice.set_speed(speed);
                 }
                 self.set_playing(playing);
+            }
+            Some(Action::Save) => {
+                let title = practice.title.clone();
+                if let Some(bytes) = &self.preview {
+                    let result = self.library.save_midi(&title, bytes);
+                    if result.is_ok() {
+                        self.preview = None;
+                    }
+                    self.status = Some(result.map(|()| format!("Saved \"{title}\"")));
+                }
             }
             Some(Action::Difficulty(difficulty)) => {
                 let playing = practice.is_playing();
@@ -381,6 +555,9 @@ impl eframe::App for PianoApp {
         for path in dropped {
             self.import(&path);
         }
+        while let Ok(message) = self.inbox.try_recv() {
+            self.receive(message);
+        }
         if let Some(practice) = &mut self.practice
             && practice.is_playing()
         {
@@ -407,6 +584,12 @@ impl eframe::App for PianoApp {
             self.set_mouse_note(mouse_note);
         });
 
-        egui::CentralPanel::default().show(ui, |ui| self.sheet(ui));
+        egui::CentralPanel::default().show(ui, |ui| {
+            if self.online_query.is_some() {
+                self.online_results(ui);
+            } else {
+                self.sheet(ui);
+            }
+        });
     }
 }
