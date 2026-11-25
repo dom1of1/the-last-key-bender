@@ -3,43 +3,66 @@ use eframe::egui::{self, Align2, Color32, FontId, Rect, Sense, Stroke, StrokeKin
 use crate::keymap::{self, WHITE_KEY_COUNT};
 
 const KEY_ASPECT: f32 = 5.0;
+const MAX_HEIGHT_FRACTION: f32 = 0.4;
 const BLACK_WIDTH: f32 = 0.6;
 const BLACK_HEIGHT: f32 = 0.62;
 
+#[derive(PartialEq)]
+pub enum KeyState {
+    Up,
+    Down,
+    Next,
+}
+
+/// Horizontal position of a note's key, measured from the left edge of the keyboard.
+fn note_span(note: u8, width: f32) -> Option<(f32, f32)> {
+    let key_width = width / WHITE_KEY_COUNT as f32;
+    (0..WHITE_KEY_COUNT).find_map(|i| {
+        if keymap::white_note(i) == note {
+            Some((i as f32 * key_width, (i + 1) as f32 * key_width))
+        } else if keymap::has_sharp(i) && keymap::white_note(i) + 1 == note {
+            let center = (i + 1) as f32 * key_width;
+            let half = key_width * BLACK_WIDTH / 2.0;
+            Some((center - half, center + half))
+        } else {
+            None
+        }
+    })
+}
+
 /// Draws the keyboard and returns the note under the mouse while the button is held.
-pub fn show(ui: &mut egui::Ui, is_pressed: impl Fn(u8) -> bool) -> Option<u8> {
+/// With `no_shift`, black keys are labelled with the plain key that plays them and a dot,
+/// as in songs, where Shift isn't needed.
+pub fn show(ui: &mut egui::Ui, no_shift: bool, state: impl Fn(u8) -> KeyState) -> Option<u8> {
     let width = ui.available_width();
     let key_width = width / WHITE_KEY_COUNT as f32;
-    let height = (key_width * KEY_ASPECT).min(ui.available_height());
+    let max_height = ui.ctx().content_rect().height() * MAX_HEIGHT_FRACTION;
+    let height = (key_width * KEY_ASPECT).min(max_height);
     let (rect, response) = ui.allocate_exact_size(Vec2::new(width, height), Sense::drag());
 
-    let white = |i: usize| {
-        Rect::from_min_size(
-            rect.min + Vec2::new(i as f32 * key_width, 0.0),
-            Vec2::new(key_width, height),
+    let key_rect = |note: u8, height: f32| {
+        let (x0, x1) = note_span(note, width).expect("note is on the keyboard");
+        Rect::from_x_y_ranges(
+            rect.left() + x0..=rect.left() + x1,
+            rect.top()..=rect.top() + height,
         )
     };
-    let black = |i: usize| {
-        let size = Vec2::new(key_width * BLACK_WIDTH, height * BLACK_HEIGHT);
-        Rect::from_min_size(
-            rect.min + Vec2::new((i + 1) as f32 * key_width - size.x / 2.0, 0.0),
-            size,
-        )
-    };
+    let white = |i: usize| key_rect(keymap::white_note(i), height);
+    let black = |i: usize| key_rect(keymap::white_note(i) + 1, height * BLACK_HEIGHT);
     let sharps = || (0..WHITE_KEY_COUNT).filter(|&i| keymap::has_sharp(i));
 
     let painter = ui.painter_at(rect);
     let accent = ui.visuals().selection.bg_fill;
+    let fill = |note: u8, up: Color32| match state(note) {
+        KeyState::Up => up,
+        KeyState::Down => accent,
+        KeyState::Next => up.lerp_to_gamma(accent, 0.45),
+    };
     let font = FontId::monospace(key_width * 0.45);
 
     for i in 0..WHITE_KEY_COUNT {
         let r = white(i);
-        let fill = if is_pressed(keymap::white_note(i)) {
-            accent
-        } else {
-            Color32::WHITE
-        };
-        painter.rect_filled(r, 3.0, fill);
+        painter.rect_filled(r, 3.0, fill(keymap::white_note(i), Color32::WHITE));
         painter.rect_stroke(r, 3.0, Stroke::new(1.0, Color32::GRAY), StrokeKind::Inside);
         painter.text(
             r.center_bottom() - Vec2::Y * key_width * 0.5,
@@ -52,19 +75,26 @@ pub fn show(ui: &mut egui::Ui, is_pressed: impl Fn(u8) -> bool) -> Option<u8> {
 
     for i in sharps() {
         let r = black(i);
-        let fill = if is_pressed(keymap::white_note(i) + 1) {
-            accent
-        } else {
-            Color32::from_gray(25)
-        };
-        painter.rect_filled(r, 2.0, fill);
+        painter.rect_filled(
+            r,
+            2.0,
+            fill(keymap::white_note(i) + 1, Color32::from_gray(25)),
+        );
+        let label_pos = r.center_bottom() - Vec2::Y * key_width * 0.5;
         painter.text(
-            r.center_bottom() - Vec2::Y * key_width * 0.5,
+            label_pos,
             Align2::CENTER_CENTER,
-            keymap::label(i, true),
+            keymap::label(i, !no_shift),
             FontId::monospace(key_width * 0.35),
             Color32::LIGHT_GRAY,
         );
+        if no_shift {
+            painter.circle_filled(
+                label_pos - Vec2::Y * key_width * 0.35,
+                2.5,
+                Color32::LIGHT_GRAY,
+            );
+        }
     }
 
     if !response.is_pointer_button_down_on() {

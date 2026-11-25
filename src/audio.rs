@@ -70,11 +70,23 @@ impl Audio {
     }
 
     pub fn note_on(&self, note: u8) {
-        let _ = self.commands.send(Command::NoteOn(note));
+        let _ = self.commands.send(Command::Play(note));
+    }
+
+    pub fn schedule(&self, delay: f32, note: u8, length: f32) {
+        let _ = self.commands.send(Command::Schedule {
+            delay,
+            note,
+            length,
+        });
+    }
+
+    pub fn cancel_scheduled(&self) {
+        let _ = self.commands.send(Command::CancelScheduled);
     }
 
     pub fn note_off(&self, note: u8) {
-        let _ = self.commands.send(Command::NoteOff(note));
+        let _ = self.commands.send(Command::Stop(note));
     }
 }
 
