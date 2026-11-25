@@ -20,7 +20,7 @@ Get the file for your system from the [Releases](https://github.com/dom1of1/the-
 ### Songs
 - Pick a song from the list and press **Space** to play or pause.
 - Type each character as it reaches the line. A dot above a character means a black key, but you don't need Shift in songs.
-- **Speed** (50%, 75%, 100%) slows the whole song down. **Difficulty** (Easy, Normal, Hard) sets how many melody notes you type; the rest play by themselves. Each song remembers its own.
+- **Speed** (50%, 75%, 100%) slows the whole song down. **Difficulty** (Easy, Normal, Hard) sets how many melody notes you type; the rest play by themselves. Each song remembers its own speed and difficulty.
 - **Upload song…** or drag a `.mid` or `.txt` file onto the window to add your own.
 - To find songs online, type in the search box and press **Enter**. Open a result to play it, and **Save to library** to keep it.
 
