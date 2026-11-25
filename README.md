@@ -4,7 +4,14 @@ Always wanted to play a piano but can't afford one right now.
 What I can do though is express my will programmatically, so here we are.
 
 ## Download
-Get the file for your system from the [Releases](https://github.com/dom1of1/the-last-key-bender/releases) page, extract it and run `the-last-key-bender` (`the-last-key-bender.exe` on Windows).
+Download the latest version for your system, extract it and run `the-last-key-bender` (`the-last-key-bender.exe` on Windows):
+
+- [Windows](https://github.com/dom1of1/the-last-key-bender/releases/latest/download/the-last-key-bender-windows.zip)
+- [macOS (Apple Silicon)](https://github.com/dom1of1/the-last-key-bender/releases/latest/download/the-last-key-bender-macos-apple-silicon.tar.gz)
+- [macOS (Intel)](https://github.com/dom1of1/the-last-key-bender/releases/latest/download/the-last-key-bender-macos-intel.tar.gz)
+- [Linux](https://github.com/dom1of1/the-last-key-bender/releases/latest/download/the-last-key-bender-linux.tar.gz)
+
+Older versions are on the [Releases](https://github.com/dom1of1/the-last-key-bender/releases) page.
 
 - **Windows:** if SmartScreen warns you, click *More info* then *Run anyway*.
 - **macOS:** the app isn't signed, so the first time, right-click it and choose *Open* (or allow it in *System Settings → Privacy & Security*).
