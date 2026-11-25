@@ -1,0 +1,12 @@
+[package]
+name = "the-last-key-bender"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+eframe = "0.37.0"
+
+[profile.release]
+lto = "thin"      # smaller, faster binary (slower to compile)
+codegen-units = 1
+strip = true      # drop debug symbols from the shipped binary
