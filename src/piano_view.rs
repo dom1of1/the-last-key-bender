@@ -11,7 +11,8 @@ const BLACK_HEIGHT: f32 = 0.62;
 pub enum KeyState {
     Up,
     Down,
-    Next,
+    /// Being played by the song.
+    Sounding,
 }
 
 /// Horizontal position of a note's key, measured from the left edge of the keyboard.
@@ -56,7 +57,7 @@ pub fn show(ui: &mut egui::Ui, no_shift: bool, state: impl Fn(u8) -> KeyState) -
     let fill = |note: u8, up: Color32| match state(note) {
         KeyState::Up => up,
         KeyState::Down => accent,
-        KeyState::Next => up.lerp_to_gamma(accent, 0.45),
+        KeyState::Sounding => up.lerp_to_gamma(accent, 0.45),
     };
     let font = FontId::monospace(key_width * 0.45);
 

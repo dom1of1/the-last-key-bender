@@ -129,7 +129,7 @@ impl PianoApp {
         }
     }
 
-    fn key_state(&self, note: u8) -> KeyState {
+    fn key_state(&self, note: u8, sounding: &[bool; 128]) -> KeyState {
         let down = self
             .held
             .values()
@@ -137,8 +137,8 @@ impl PianoApp {
             .any(|&(n, _)| n == note);
         if down {
             KeyState::Down
-        } else if self.practice.as_ref().is_some_and(|p| p.expects(note)) {
-            KeyState::Next
+        } else if sounding[usize::from(note)] {
+            KeyState::Sounding
         } else {
             KeyState::Up
         }
@@ -399,8 +399,11 @@ impl eframe::App for PianoApp {
             if let Err(error) = &self.audio {
                 ui.colored_label(ui.visuals().error_fg_color, error);
             }
-            let in_song = self.practice.as_ref().is_some_and(|p| p.is_playing());
-            let mouse_note = piano_view::show(ui, in_song, |note| self.key_state(note));
+            let playing = self.practice.as_ref().filter(|p| p.is_playing());
+            let sounding = playing.map_or([false; 128], |p| p.sounding());
+            let mouse_note = piano_view::show(ui, playing.is_some(), |note| {
+                self.key_state(note, &sounding)
+            });
             self.set_mouse_note(mouse_note);
         });
 

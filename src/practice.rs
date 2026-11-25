@@ -283,6 +283,29 @@ impl Practice {
         self.assign_auto();
     }
 
+    /// Which keys the song is playing right now: hit melody notes, melody notes the difficulty
+    /// plays automatically, and the accompaniment.
+    pub fn sounding(&self) -> [bool; 128] {
+        let position = self.position();
+        let melody = self
+            .targets
+            .iter()
+            .filter(|t| t.auto || matches!(t.judgement, Some(Judgement::Perfect | Judgement::Good)))
+            .map(|t| (t.time, t.length, t.key));
+        let mut keys = [false; 128];
+        for (time, length, key) in self
+            .backing
+            .iter()
+            .map(|b| (b.time, b.length, b.key))
+            .chain(melody)
+        {
+            if time <= position && position < time + length {
+                keys[usize::from(key)] = true;
+            }
+        }
+        keys
+    }
+
     /// Whether `key` is a melody note the player could hit right now, or the next one coming.
     pub fn expects(&self, key: u8) -> bool {
         let horizon = self.position() + self.difficulty.good_window() * self.speed;
@@ -470,6 +493,19 @@ mod tests {
             panic!("expected a hit");
         };
         assert_eq!(note.key, 50);
+    }
+
+    #[test]
+    fn sounding_shows_backing_and_hit_notes_but_not_misses() {
+        let mut p = song();
+        at(&mut p, 0.5);
+        let keys = p.sounding();
+        assert!(keys[50] && keys[53] && !keys[62]);
+
+        at(&mut p, 0.0);
+        p.press(62);
+        at(&mut p, 0.5);
+        assert!(p.sounding()[62]);
     }
 
     #[test]
