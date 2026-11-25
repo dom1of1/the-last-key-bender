@@ -15,7 +15,9 @@ A desktop piano for Windows, macOS and Linux with real grand piano sound, songs 
 
 </div>
 
-https://github.com/user-attachments/assets/e0584876-0705-4dd4-8190-c1197716768f
+*My sad attempt at playing the Gravity Falls theme*
+
+https://github.com/user-attachments/assets/8a0d975c-6fdc-4731-ac0f-799f6a9d1e71
 
 ## WHY?
 Always wanted to play a piano but can't afford one right now. 
