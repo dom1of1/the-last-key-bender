@@ -9,9 +9,13 @@ use crate::library::{self, Library};
 use crate::online::{self, Hit, Message};
 use crate::piano_view::{self, KeyState};
 use crate::practice::{Difficulty, Practice, Press};
+use crate::settings::Settings;
+use crate::song::Chart;
 use crate::{keymap, lane};
 
 const SPEEDS: [f32; 3] = [0.5, 0.75, 1.0];
+// Free play can move the keyboard down to C1 or up to C8.
+const OCTAVES: std::ops::RangeInclusive<i8> = -1..=1;
 
 enum Action {
     TogglePlay,
@@ -27,6 +31,10 @@ pub struct PianoApp {
     // means releasing Shift first still stops the right one; song notes stop on their own.
     held: HashMap<Key, (u8, bool)>,
     mouse_note: Option<(u8, bool)>,
+    // Free play sustain pedal, and notes released while it's down that are still ringing.
+    pedal: bool,
+    sustained: Vec<u8>,
+    settings: Settings,
     library: Library,
     search: String,
     practice: Option<Practice>,
@@ -46,10 +54,14 @@ pub struct PianoApp {
 impl PianoApp {
     pub fn new() -> Self {
         let (outbox, inbox) = mpsc::channel();
+        let settings = Settings::load();
         Self {
             audio: Audio::new(),
             held: HashMap::new(),
             mouse_note: None,
+            pedal: false,
+            sustained: Vec::new(),
+            settings,
             library: Library::load(),
             search: String::new(),
             practice: None,
@@ -66,18 +78,75 @@ impl PianoApp {
     }
 
     fn handle_key(&mut self, key: Key, pressed: bool, shift: bool) {
-        if key == Key::Space {
-            if pressed && let Some(practice) = &self.practice {
-                self.set_playing(!practice.is_playing());
+        let free_play = self.practice.is_none();
+        match key {
+            Key::Space if free_play => self.set_pedal(pressed),
+            Key::Space => {
+                if pressed && let Some(practice) = &self.practice {
+                    self.set_playing(!practice.is_playing());
+                }
             }
-        } else if pressed {
-            if let Some(note) = self.note_for(key, shift) {
-                let stop_on_release = self.press(note);
-                self.held.insert(key, (note, stop_on_release));
+            Key::ArrowLeft if free_play && pressed => self.shift_octave(-1),
+            Key::ArrowRight if free_play && pressed => self.shift_octave(1),
+            _ if pressed => {
+                if let Some(note) = self.note_for(key, shift) {
+                    let note = self.transpose(note);
+                    let stop_on_release = self.press(note);
+                    self.held.insert(key, (note, stop_on_release));
+                }
             }
-        } else if let Some((note, true)) = self.held.remove(&key) {
+            _ => {
+                if let Some((note, true)) = self.held.remove(&key) {
+                    self.lift(note);
+                }
+            }
+        }
+    }
+
+    /// Moves a keyboard note by the Free play octave. Songs always use the normal range.
+    fn transpose(&self, note: u8) -> u8 {
+        if self.practice.is_some() {
+            return note;
+        }
+        note.saturating_add_signed(self.settings.octave * 12)
+    }
+
+    fn shift_octave(&mut self, by: i8) {
+        let octave = (self.settings.octave + by).clamp(*OCTAVES.start(), *OCTAVES.end());
+        if octave != self.settings.octave {
+            self.settings.octave = octave;
+            self.settings.save();
+        }
+    }
+
+    fn set_pedal(&mut self, down: bool) {
+        if down == self.pedal {
+            return;
+        }
+        self.pedal = down;
+        if !down {
+            for note in std::mem::take(&mut self.sustained) {
+                if !self.is_held(note) {
+                    self.release(note);
+                }
+            }
+        }
+    }
+
+    // A key or mouse button let go of a note: it stops, unless the sustain pedal is down.
+    fn lift(&mut self, note: u8) {
+        if self.pedal {
+            self.sustained.push(note);
+        } else {
             self.release(note);
         }
+    }
+
+    fn is_held(&self, note: u8) -> bool {
+        self.held
+            .values()
+            .chain(&self.mouse_note)
+            .any(|&(n, _)| n == note)
     }
 
     /// While a song is playing, a key plays whichever of its two notes (with or without Shift)
@@ -99,7 +168,7 @@ impl PianoApp {
             return;
         }
         if let Some((old, true)) = self.mouse_note {
-            self.release(old);
+            self.lift(old);
         }
         self.mouse_note = note.map(|n| (n, self.press(n)));
     }
@@ -151,15 +220,11 @@ impl PianoApp {
         }
     }
 
-    fn key_state(&self, note: u8, sounding: &[bool; 128]) -> KeyState {
-        let down = self
-            .held
-            .values()
-            .chain(&self.mouse_note)
-            .any(|&(n, _)| n == note);
-        if down {
+    fn key_state(&self, key: u8, sounding: &[bool; 128]) -> KeyState {
+        let note = self.transpose(key);
+        if self.is_held(note) {
             KeyState::Down
-        } else if sounding[usize::from(note)] {
+        } else if sounding[usize::from(note)] || self.sustained.contains(&note) {
             KeyState::Sounding
         } else {
             KeyState::Up
@@ -168,11 +233,28 @@ impl PianoApp {
 
     fn open(&mut self, title: &str) {
         if let Some(song) = self.library.songs.iter().find(|s| s.title == title) {
-            self.practice = Some(Practice::new(song.title.clone(), song.chart.clone()));
-            self.preview = None;
-            self.online_query = None;
-            self.set_playing(false);
+            self.start_song(song.title.clone(), song.chart.clone(), None);
         }
+    }
+
+    /// Opens a song with the remembered speed and difficulty, ready to play.
+    fn start_song(&mut self, title: String, chart: Chart, preview: Option<Vec<u8>>) {
+        let remembered = self.settings.song(&title);
+        let mut practice = Practice::new(title, chart);
+        practice.set_speed(remembered.speed);
+        practice.set_difficulty(remembered.difficulty);
+        practice.restart();
+        self.set_pedal(false);
+        self.set_playing(false);
+        self.practice = Some(practice);
+        self.preview = preview;
+        self.online_query = None;
+    }
+
+    fn close_song(&mut self) {
+        self.set_playing(false);
+        self.practice = None;
+        self.preview = None;
     }
 
     fn search_online(&mut self, query: String, ctx: &egui::Context) {
@@ -197,12 +279,7 @@ impl PianoApp {
                 self.downloading = None;
                 let song = bytes.and_then(|b| library::midi_chart(&b).map(|chart| (chart, b)));
                 match song {
-                    Ok((chart, bytes)) => {
-                        self.practice = Some(Practice::new(title, chart));
-                        self.preview = Some(bytes);
-                        self.online_query = None;
-                        self.set_playing(false);
-                    }
+                    Ok((chart, bytes)) => self.start_song(title, chart, Some(bytes)),
                     Err(error) => self.online_error = Some(error),
                 }
             }
@@ -212,7 +289,10 @@ impl PianoApp {
     fn remove(&mut self, title: &str) {
         let result = self.library.remove(title);
         if result.is_ok() && self.practice.as_ref().is_some_and(|p| p.title == title) {
-            self.practice = None;
+            self.close_song();
+        }
+        if result.is_ok() && self.settings.songs.remove(title).is_some() {
+            self.settings.save();
         }
         self.status = Some(result.map(|()| format!("Removed \"{title}\"")));
     }
@@ -270,7 +350,7 @@ impl PianoApp {
                     .selectable_label(self.practice.is_none(), "Free play")
                     .clicked()
                 {
-                    self.practice = None;
+                    self.close_song();
                     self.online_query = None;
                 }
                 let lowercase = query.to_lowercase();
@@ -332,6 +412,35 @@ impl PianoApp {
             }
             None => {}
         }
+    }
+
+    /// Free play octave and sustain pedal.
+    fn controls(&mut self, ui: &mut egui::Ui) {
+        if self.practice.is_some() {
+            return;
+        }
+        ui.horizontal(|ui| {
+            ui.label("Octave")
+                .on_hover_text("Left and right arrow keys");
+            if ui.button("-").clicked() {
+                self.shift_octave(-1);
+            }
+            ui.label(match self.settings.octave {
+                0 => "0".to_string(),
+                o => format!("{o:+}"),
+            });
+            if ui.button("+").clicked() {
+                self.shift_octave(1);
+            }
+            ui.separator();
+            if ui
+                .selectable_label(self.pedal, "Sustain")
+                .on_hover_text("Hold Space, or click to toggle")
+                .clicked()
+            {
+                self.set_pedal(!self.pedal);
+            }
+        });
     }
 
     fn online_results(&mut self, ui: &mut egui::Ui) {
@@ -462,6 +571,8 @@ impl PianoApp {
                 self.set_playing(false);
             }
             Some(Action::Speed(speed)) => {
+                self.settings.song_mut(&practice.title).speed = speed;
+                self.settings.save();
                 let playing = practice.is_playing();
                 if let Some(practice) = &mut self.practice {
                     practice.set_speed(speed);
@@ -479,6 +590,8 @@ impl PianoApp {
                 }
             }
             Some(Action::Difficulty(difficulty)) => {
+                self.settings.song_mut(&practice.title).difficulty = difficulty;
+                self.settings.save();
                 let playing = practice.is_playing();
                 if let Some(practice) = &mut self.practice {
                     practice.set_difficulty(difficulty);
@@ -576,12 +689,13 @@ impl eframe::App for PianoApp {
             if let Err(error) = &self.audio {
                 ui.colored_label(ui.visuals().error_fg_color, error);
             }
+            self.controls(ui);
             let playing = self.practice.as_ref().filter(|p| p.is_playing());
             let sounding = playing.map_or([false; 128], |p| p.sounding());
             let mouse_note = piano_view::show(ui, playing.is_some(), |note| {
                 self.key_state(note, &sounding)
             });
-            self.set_mouse_note(mouse_note);
+            self.set_mouse_note(mouse_note.map(|n| self.transpose(n)));
         });
 
         egui::CentralPanel::default().show(ui, |ui| {

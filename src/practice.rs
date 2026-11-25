@@ -12,7 +12,7 @@ const HIGHEST_KEY: u8 = 96;
 const NOTE_GRID_BEATS: [f32; 5] = [0.25, 0.5, 1.0, 2.0, 4.0];
 
 /// How many melody notes the player types. The rest play by themselves.
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum Difficulty {
     Easy,
     Normal,

@@ -9,7 +9,11 @@ use crate::sampler::{Command, Sample, Sampler};
 
 const BUFFER_FRAMES: u32 = 256;
 
-const PIANO: [(u8, &[u8]); 21] = [
+const PIANO: [(u8, &[u8]); 29] = [
+    (24, include_bytes!("../assets/piano/C1.ogg")),
+    (27, include_bytes!("../assets/piano/Ds1.ogg")),
+    (30, include_bytes!("../assets/piano/Fs1.ogg")),
+    (33, include_bytes!("../assets/piano/A1.ogg")),
     (36, include_bytes!("../assets/piano/C2.ogg")),
     (39, include_bytes!("../assets/piano/Ds2.ogg")),
     (42, include_bytes!("../assets/piano/Fs2.ogg")),
@@ -31,6 +35,10 @@ const PIANO: [(u8, &[u8]); 21] = [
     (90, include_bytes!("../assets/piano/Fs6.ogg")),
     (93, include_bytes!("../assets/piano/A6.ogg")),
     (96, include_bytes!("../assets/piano/C7.ogg")),
+    (99, include_bytes!("../assets/piano/Ds7.ogg")),
+    (102, include_bytes!("../assets/piano/Fs7.ogg")),
+    (105, include_bytes!("../assets/piano/A7.ogg")),
+    (108, include_bytes!("../assets/piano/C8.ogg")),
 ];
 
 pub struct Audio {

@@ -10,6 +10,7 @@ mod online;
 mod piano_view;
 mod practice;
 mod sampler;
+mod settings;
 mod song;
 
 fn main() -> eframe::Result {
