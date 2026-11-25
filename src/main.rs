@@ -2,6 +2,9 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod app;
+mod audio;
+mod keymap;
+mod sampler;
 
 fn main() -> eframe::Result {
     let options = eframe::NativeOptions {
@@ -14,6 +17,6 @@ fn main() -> eframe::Result {
     eframe::run_native(
         "The Last Key Bender",
         options,
-        Box::new(|_cc| Ok(Box::new(app::PianoApp::default()))),
+        Box::new(|_cc| Ok(Box::new(app::PianoApp::new()))),
     )
 }
