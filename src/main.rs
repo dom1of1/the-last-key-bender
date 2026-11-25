@@ -6,6 +6,7 @@ mod audio;
 mod keymap;
 mod lane;
 mod library;
+mod online;
 mod piano_view;
 mod practice;
 mod sampler;

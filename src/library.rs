@@ -50,7 +50,6 @@ impl Library {
                 library.add(title, chart, path);
             }
         }
-        library.songs.sort_by_key(|s| s.title.to_lowercase());
         library
     }
 
@@ -58,19 +57,35 @@ impl Library {
     pub fn import(&mut self, path: &Path) -> Result<String, String> {
         let title = title_of(path).ok_or("File has no name")?;
         let chart = read_chart(path)?;
+        let extension = if is_midi(path) { "mid" } else { "txt" };
+        let saved = self.song_path(&title, extension)?;
+        fs::copy(path, &saved).map_err(|e| e.to_string())?;
 
+        self.add(title.clone(), chart, saved);
+        Ok(title)
+    }
+
+    /// Saves a downloaded MIDI file to the user's song folder.
+    pub fn save_midi(&mut self, title: &str, bytes: &[u8]) -> Result<(), String> {
+        let chart = midi_chart(bytes)?;
+        let saved = self.song_path(title, "mid")?;
+        fs::write(&saved, bytes).map_err(|e| e.to_string())?;
+        self.add(title.into(), chart, saved);
+        Ok(())
+    }
+
+    fn song_path(&self, title: &str, extension: &str) -> Result<PathBuf, String> {
         let dir = self
             .dir
             .as_ref()
             .ok_or("Could not find a folder to save songs in")?;
-        let extension = if is_midi(path) { "mid" } else { "txt" };
-        let saved = dir.join(format!("{title}.{extension}"));
         fs::create_dir_all(dir).map_err(|e| e.to_string())?;
-        fs::copy(path, &saved).map_err(|e| e.to_string())?;
-
-        self.add(title.clone(), chart, saved);
-        self.songs.sort_by_key(|s| s.title.to_lowercase());
-        Ok(title)
+        // Titles from the web can contain characters that aren't allowed in file names.
+        let name: String = title
+            .chars()
+            .map(|c| if r#"/\:*?"<>|"#.contains(c) { '-' } else { c })
+            .collect();
+        Ok(dir.join(format!("{name}.{extension}")))
     }
 
     /// Deletes an uploaded song's saved copy. The file it was uploaded from is left alone.
@@ -98,6 +113,7 @@ impl Library {
             }
             None => self.songs.push(Song { title, chart, path }),
         }
+        self.songs.sort_by_key(|s| s.title.to_lowercase());
     }
 }
 
@@ -111,14 +127,20 @@ fn read_chart(path: &Path) -> Result<Chart, String> {
     }
 
     let bytes = fs::read(path).map_err(|e| e.to_string())?;
-    let chart = match path.extension().and_then(|e| e.to_str()) {
-        _ if is_midi(path) => song::from_midi(&bytes)?,
-        Some(e) if e.eq_ignore_ascii_case("txt") => {
-            song::parse(&String::from_utf8(bytes).map_err(|_| "Sheet is not valid text")?)
-        }
-        _ => return Err("Only .mid, .midi and .txt files are supported".into()),
-    };
+    match path.extension().and_then(|e| e.to_str()) {
+        _ if is_midi(path) => midi_chart(&bytes),
+        Some(e) if e.eq_ignore_ascii_case("txt") => check_length(song::parse(
+            &String::from_utf8(bytes).map_err(|_| "Sheet is not valid text")?,
+        )),
+        _ => Err("Only .mid, .midi and .txt files are supported".into()),
+    }
+}
 
+pub fn midi_chart(bytes: &[u8]) -> Result<Chart, String> {
+    check_length(song::from_midi(bytes)?)
+}
+
+fn check_length(chart: Chart) -> Result<Chart, String> {
     match chart.steps.len() {
         0 => Err("No playable notes found".into()),
         n if n > MAX_STEPS => Err(format!(
