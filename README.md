@@ -15,14 +15,14 @@ A desktop piano for Windows, macOS and Linux with real grand piano sound, songs 
 
 </div>
 
-*Proof that owning a piano wouldn't have helped*
-
-https://github.com/user-attachments/assets/8a0d975c-6fdc-4731-ac0f-799f6a9d1e71
-
 ## WHY?
 Always wanted to play a piano but can't afford one right now. 
 
 What I can do though is express my will programmatically, so here we are.
+
+*Proof that owning a piano wouldn't have helped*
+
+https://github.com/user-attachments/assets/8a0d975c-6fdc-4731-ac0f-799f6a9d1e71
 
 ## Features
 - **Real piano sound.** Recordings of a Yamaha grand piano, covering the whole keyboard from C1 to C8, with low enough delay to feel instant.
